@@ -376,7 +376,7 @@ function bootAuth() {
 }
 
 // ── ACTIVITY TAB ──────────────────────────────────────────────────────────────
-const CONVO_URL = (c) => c.customerId ? `https://propercloth.kustomerapp.com/app/customers/${c.customerId}/events/${c.id}` : null;
+const CONVO_URL = (c) => c.customerId ? `https://propercloth.kustomerapp.com/app/customers/${c.customerId}/event/${c.id}` : null;
 let activityEvents = [];
 let activityCursor = null;
 let activityLoaded = false;
