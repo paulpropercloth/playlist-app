@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playlist — Control Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --border: #e8e6e1; --border-strong: #d0cdc8;
+    --text: #1a1a1a; --text-secondary: #6b6860; --text-muted: #a09d98;
+    --accent: #1a1a1a; --accent-hover: #333;
+    --danger: #c53030; --danger-bg: #fff5f5; --danger-border: #fed7d7;
+    --tag-bg: #f0ede8; --tag-text: #4a4845;
+    --radius: 8px; --radius-sm: 5px;
+  }
+  body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .header-brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon { width: 30px; height: 30px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-name { font-size: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; }
+  .tab { padding: 12px 18px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; user-select: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+  .main { padding: 32px; max-width: 860px; margin: 0 auto; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .section-title { font-size: 16px; font-weight: 600; }
+  .section-desc { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-outline { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-danger { background: transparent; color: var(--danger); border-color: var(--danger-border); }
+  .btn-danger:hover { background: var(--danger-bg); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+  .card-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 14px; font-weight: 600; }
+  .card-body { padding: 18px; }
+
+  .profile-badge { display: inline-flex; align-items: center; background: var(--tag-bg); color: var(--tag-text); padding: 3px 10px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+
+  .user-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 32px; }
+  .user-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--tag-bg); border: 1px solid var(--border); border-radius: 100px; padding: 4px 10px 4px 8px; font-size: 12px; color: var(--tag-text); }
+  .user-chip button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1; font-size: 14px; }
+  .user-chip button:hover { color: var(--danger); }
+  .empty-chips { font-size: 12px; color: var(--text-muted); font-style: italic; padding: 6px 0; }
+
+  .add-user-row { display: flex; gap: 8px; align-items: center; }
+  .add-user-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; color: var(--text); background: var(--bg); outline: none; transition: border-color 0.15s; }
+  .add-user-row input:focus { border-color: var(--accent); background: #fff; }
+
+  .add-profile-form { background: var(--surface); border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
+  .add-profile-form input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; color: var(--text); background: var(--bg); outline: none; transition: border-color 0.15s; }
+  .add-profile-form input:focus { border-color: var(--accent); background: #fff; }
+
+  .search-table { width: 100%; border-collapse: collapse; }
+  .search-table th { text-align: left; font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 0 10px 10px; }
+  .search-table th:first-child { padding-left: 0; width: 36px; }
+  .search-table th:last-child { width: 60px; text-align: center; }
+  .search-table td { padding: 5px 10px; vertical-align: middle; }
+  .search-table td:first-child { padding-left: 0; }
+  .search-table td:last-child { text-align: center; }
+  .search-table tr.search-row td { border-top: 1px solid var(--border); }
+  .search-table tr.search-row:first-of-type td { border-top: none; }
+
+  .priority-badge { width: 24px; height: 24px; background: var(--bg); border: 1px solid var(--border); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-secondary); font-family: 'DM Mono', monospace; }
+
+  .search-table select, .search-table input[type="number"] { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; color: var(--text); background: var(--bg); outline: none; transition: border-color 0.15s; -webkit-appearance: none; }
+  .search-table select:focus, .search-table input[type="number"]:focus { border-color: var(--accent); background: #fff; }
+  .search-table select { width: 100%; cursor: pointer; }
+  .search-table input[type="number"] { width: 60px; text-align: center; }
+  .add-search-row { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+
+  .searches-loading { font-size: 12px; color: var(--text-muted); font-style: italic; padding: 8px 0; }
+
+  .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; }
+  .toast-msg { background: var(--text); color: #fff; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; animation: slideIn 0.2s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 13px; }
+  .inline-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="brand-icon">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+        <circle cx="3" cy="6" r="1" fill="#fff" stroke="none"/><circle cx="3" cy="12" r="1" fill="#fff" stroke="none"/><circle cx="3" cy="18" r="1" fill="#fff" stroke="none"/>
+      </svg>
+    </div>
+    <span class="brand-name">Playlist</span>
+  </div>
+  <button class="btn btn-outline btn-sm" id="refreshBtn" onclick="refreshSearches()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    Refresh Searches
+  </button>
+</header>
+
+<nav class="tabs">
+  <div class="tab active" onclick="switchTab('users')">Users &amp; Profiles</div>
+  <div class="tab" onclick="switchTab('settings')">Profile Settings</div>
+  <div class="tab" onclick="switchTab('bulk')">Bulk Distribute</div>
+</nav>
+
+<main class="main">
+  <div id="tab-users" class="tab-panel active">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Users &amp; Profiles</div>
+        <div class="section-desc">Assign agents to a playlist profile. Each agent can belong to only one profile.</div>
+      </div>
+    </div>
+    <div class="add-profile-form">
+      <input type="text" id="newProfileName" placeholder="New profile name (e.g. Tier 1, VIP, Returns…)" />
+      <button class="btn btn-primary" onclick="addProfile()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Profile
+      </button>
+    </div>
+    <div id="profiles-list"></div>
+  </div>
+
+  <div id="tab-settings" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Profile Settings</div>
+        <div class="section-desc">Configure which saved searches each profile pulls from, and how many conversations to assign per search.</div>
+      </div>
+      <button class="btn btn-outline" onclick="saveAllSettings()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save All
+      </button>
+    </div>
+    <div id="settings-list"></div>
+  </div>
+  <div id="tab-bulk" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Bulk Distribute</div>
+        <div class="section-desc">Evenly distribute all conversations from a saved search across a selected group of agents.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Distribution Settings</span>
+        <span class="profile-badge" id="bulk-convo-badge" style="display:none;"></span>
+      </div>
+      <div class="card-body">
+
+        <!-- Saved Search picker -->
+        <div style="margin-bottom:20px;">
+          <span class="inline-label">Saved Search</span>
+          <select id="bulk-search-select" onchange="onBulkSearchChange()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;color:var(--text);background:var(--bg);outline:none;-webkit-appearance:none;">
+            <option value="">— select a saved search —</option>
+          </select>
+        </div>
+
+        <!-- Agent selection -->
+        <div style="margin-bottom:20px;">
+          <span class="inline-label">Agents to assign to</span>
+
+          <!-- Add from profile -->
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+            <select id="bulk-profile-select" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;color:var(--text);background:var(--bg);outline:none;-webkit-appearance:none;">
+              <option value="">Add agents from a profile…</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="addAgentsFromProfile()">Add Profile</button>
+          </div>
+
+          <!-- Add individual agent -->
+          <div class="add-user-row" style="margin-bottom:10px;">
+            <input type="email" id="bulk-agent-input" placeholder="agent@propercloth.com" onkeydown="if(event.key==='Enter')addBulkAgent()" />
+            <button class="btn btn-outline btn-sm" onclick="addBulkAgent()">Add Agent</button>
+          </div>
+
+          <!-- Selected agents chips -->
+          <div class="user-chips" id="bulk-agent-chips">
+            <span class="empty-chips">No agents selected yet</span>
+          </div>
+        </div>
+
+        <!-- Calculate button -->
+        <button class="btn btn-outline" id="bulk-calculate-btn" onclick="runCalculate()" disabled style="width:100%;padding:10px;font-size:13px;justify-content:center;margin-bottom:10px;">
+          <div id="calc-spinner" style="display:none;width:13px;height:13px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:spin 0.6s linear infinite;"></div>
+          <span id="calc-btn-label">Calculate Distribution</span>
+        </button>
+
+        <!-- Preview / calculation result -->
+        <div id="bulk-preview" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--text-secondary);">
+        </div>
+
+        <!-- Distribute button -->
+        <button class="btn btn-primary" id="bulk-distribute-btn" onclick="runBulkDistribute()" disabled style="width:100%;padding:11px;font-size:14px;justify-content:center;">
+          <div id="bulk-spinner" style="display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></div>
+          <span id="bulk-btn-label">Bulk Distribute</span>
+        </button>
+
+        <!-- Result -->
+        <div id="bulk-result" style="display:none;margin-top:12px;padding:12px 14px;border-radius:var(--radius-sm);font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const API_BASE = 'https://playlist-backend.prprkust.workers.dev';
+
+let profiles = [];
+let savedSearches = []; // flat array of {id, name}
+let searchesLoaded = false;
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init() {
+  // 1. Load profiles — render immediately when done
+  try {
+    const res = await fetch(`${API_BASE}/api/profiles`);
+    const data = await res.json();
+    profiles = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('Failed to load profiles:', e);
+    profiles = [];
+  }
+  renderAll();
+
+  // 2. Load searches in background — don't block profile rendering
+  loadSavedSearches(false);
+}
+
+async function loadSavedSearches(forceRefresh) {
+  try {
+    const url = `${API_BASE}/api/saved-searches${forceRefresh ? '?refresh=1' : ''}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // Flatten folder-grouped structure into a simple array
+    if (Array.isArray(data)) {
+      savedSearches = [];
+      for (const group of data) {
+        if (Array.isArray(group.searches)) {
+          savedSearches = savedSearches.concat(group.searches);
+        }
+      }
+      // Deduplicate by id
+      const seen = new Set();
+      savedSearches = savedSearches.filter(s => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+      savedSearches.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    searchesLoaded = true;
+    renderSettingsList(); // re-render now that searches are available
+  } catch (e) {
+    console.error('Failed to load searches:', e);
+    showToast('Could not load saved searches — try Refresh Searches');
+  }
+}
+
+async function refreshSearches() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.7s linear infinite"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refreshing…`;
+  await loadSavedSearches(true);
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refresh Searches`;
+  showToast('Saved searches updated');
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['users','settings','bulk'][i] === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderAll() {
+  renderProfilesList();
+  renderSettingsList();
+}
+
+function renderProfilesList() {
+  const el = document.getElementById('profiles-list');
+  if (!el) return;
+  if (profiles.length === 0) {
+    el.innerHTML = '<div class="empty-state">No profiles yet. Add one above to get started.</div>';
+    return;
+  }
+  el.innerHTML = profiles.map(p => `
+    <div class="card" id="pcard-${p.id}">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="card-title">${escHtml(p.name)}</span>
+          <span class="profile-badge">${p.users.length} agent${p.users.length !== 1 ? 's' : ''}</span>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteProfile('${p.id}')">Delete</button>
+      </div>
+      <div class="card-body">
+        <span class="inline-label">Agents</span>
+        <div class="user-chips" id="chips-${p.id}">
+          ${p.users.length === 0
+            ? '<span class="empty-chips">No agents assigned yet</span>'
+            : p.users.map(u => `
+              <span class="user-chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                ${escHtml(u)}
+                <button onclick="removeUser('${p.id}','${escHtml(u)}')" title="Remove">×</button>
+              </span>`).join('')
+          }
+        </div>
+        <div class="add-user-row">
+          <input type="email" id="userinput-${p.id}" placeholder="agent@propercloth.com" onkeydown="if(event.key==='Enter')addUser('${p.id}')" />
+          <button class="btn btn-outline btn-sm" onclick="addUser('${p.id}')">Add agent</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSettingsList() {
+  populateBulkSearchDropdown();
+  populateBulkProfileDropdown();
+  const el = document.getElementById('settings-list');
+  if (!el) return;
+  if (profiles.length === 0) {
+    el.innerHTML = '<div class="empty-state">No profiles configured yet. Add profiles in the Users &amp; Profiles tab.</div>';
+    return;
+  }
+  el.innerHTML = profiles.map(p => `
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-header">
+        <span class="card-title">${escHtml(p.name)}</span>
+        <span class="profile-badge">${p.searches.length}/10 searches</span>
+      </div>
+      <div class="card-body">
+        ${!searchesLoaded ? '<p class="searches-loading">Loading saved searches…</p>' : ''}
+        <table class="search-table">
+          <thead>
+            <tr><th>#</th><th>Saved Search</th><th style="width:90px;text-align:center;">Qty</th><th></th></tr>
+          </thead>
+          <tbody id="stbody-${p.id}">
+            ${p.searches.map((s, i) => renderSearchRow(p.id, s, i)).join('')}
+          </tbody>
+        </table>
+        ${p.searches.length < 10 ? `
+          <div class="add-search-row">
+            <button class="btn btn-outline btn-sm" onclick="addSearch('${p.id}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add saved search
+            </button>
+          </div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSearchRow(profileId, search, index) {
+  const opts = savedSearches.map(ss =>
+    `<option value="${ss.id}" ${ss.id === search.searchId ? 'selected' : ''}>${escHtml(ss.name)}</option>`
+  ).join('');
+
+  return `
+    <tr class="search-row" id="srow-${profileId}-${index}">
+      <td><span class="priority-badge">${index + 1}</span></td>
+      <td>
+        <select onchange="updateSearch('${profileId}',${index},'searchId',this.value);updateSearchName('${profileId}',${index},this)">
+          <option value="">— select a search —</option>
+          ${opts}
+        </select>
+      </td>
+      <td style="text-align:center;">
+        <input type="number" min="1" max="99" value="${search.quantity || 1}"
+          onchange="updateSearch('${profileId}',${index},'quantity',parseInt(this.value)||1)" />
+      </td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="removeSearch('${profileId}',${index})">✕</button>
+      </td>
+    </tr>`;
+}
+
+// ── PROFILE ACTIONS ───────────────────────────────────────────────────────────
+function addProfile() {
+  const input = document.getElementById('newProfileName');
+  const name = input.value.trim();
+  if (!name) { showToast('Enter a profile name first'); return; }
+  if (profiles.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+    showToast('A profile with that name already exists'); return;
+  }
+  profiles.push({ id: 'p' + Date.now(), name, users: [], searches: [] });
+  input.value = '';
+  renderAll();
+  persistProfiles();
+  showToast(`"${name}" profile created`);
+}
+
+function deleteProfile(id) {
+  const p = profiles.find(p => p.id === id);
+  if (!confirm(`Delete the "${p.name}" profile? Agents assigned to it will be unassigned.`)) return;
+  profiles = profiles.filter(p => p.id !== id);
+  renderAll();
+  persistProfiles();
+  showToast(`"${p.name}" deleted`);
+}
+
+// ── USER ACTIONS ──────────────────────────────────────────────────────────────
+function addUser(profileId) {
+  const input = document.getElementById(`userinput-${profileId}`);
+  const email = input.value.trim().toLowerCase();
+  if (!email) return;
+  if (!email.includes('@')) { showToast('Enter a valid email address'); return; }
+  const existing = profiles.find(p => p.users.includes(email));
+  if (existing) { showToast(`${email} is already in the "${existing.name}" profile`); return; }
+  const p = profiles.find(p => p.id === profileId);
+  p.users.push(email);
+  input.value = '';
+  renderAll();
+  persistProfiles();
+}
+
+function removeUser(profileId, email) {
+  const p = profiles.find(p => p.id === profileId);
+  p.users = p.users.filter(u => u !== email);
+  renderAll();
+  persistProfiles();
+}
+
+// ── SEARCH ACTIONS ────────────────────────────────────────────────────────────
+function addSearch(profileId) {
+  const p = profiles.find(p => p.id === profileId);
+  if (p.searches.length >= 10) { showToast('Maximum 10 saved searches per profile'); return; }
+  p.searches.push({ searchId: '', searchName: '', quantity: 1 });
+  renderAll();
+}
+
+function removeSearch(profileId, index) {
+  const p = profiles.find(p => p.id === profileId);
+  p.searches.splice(index, 1);
+  renderAll();
+  persistProfiles();
+}
+
+function updateSearch(profileId, index, field, value) {
+  const p = profiles.find(p => p.id === profileId);
+  if (p && p.searches[index]) p.searches[index][field] = value;
+}
+
+function updateSearchName(profileId, index, selectEl) {
+  const p = profiles.find(p => p.id === profileId);
+  const match = savedSearches.find(s => s.id === selectEl.value);
+  if (match && p && p.searches[index]) p.searches[index].searchName = match.name;
+}
+
+// ── SAVE ──────────────────────────────────────────────────────────────────────
+async function persistProfiles() {
+  try {
+    await fetch(`${API_BASE}/api/profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profiles)
+    });
+  } catch (e) { console.error('Failed to save profiles:', e); }
+}
+
+async function saveAllSettings() {
+  profiles.forEach(p => {
+    p.searches.forEach((s, i) => {
+      const sel = document.querySelector(`#stbody-${p.id} tr:nth-child(${i+1}) select`);
+      const inp = document.querySelector(`#stbody-${p.id} tr:nth-child(${i+1}) input[type=number]`);
+      if (sel) {
+        s.searchId = sel.value;
+        const match = savedSearches.find(ss => ss.id === sel.value);
+        if (match) s.searchName = match.name;
+      }
+      if (inp) s.quantity = parseInt(inp.value) || 1;
+    });
+  });
+  await persistProfiles();
+  showToast('Settings saved');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast-msg';
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── BULK DISTRIBUTE ───────────────────────────────────────────────────────────
+let bulkAgents = [];   // [{email}]
+let bulkSearchId = ''; // selected saved search ID
+let bulkSearchName = '';
+
+function populateBulkSearchDropdown() {
+  const sel = document.getElementById('bulk-search-select');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— select a saved search —</option>' +
+    savedSearches.map(ss =>
+      `<option value="${ss.id}" ${ss.id === current ? 'selected' : ''}>${escHtml(ss.name)}</option>`
+    ).join('');
+}
+
+function populateBulkProfileDropdown() {
+  const sel = document.getElementById('bulk-profile-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Add agents from a profile…</option>' +
+    profiles.map(p =>
+      `<option value="${p.id}">${escHtml(p.name)} (${p.users.length} agents)</option>`
+    ).join('');
+}
+
+function onBulkSearchChange() {
+  const sel = document.getElementById('bulk-search-select');
+  bulkSearchId = sel.value;
+  bulkSearchName = sel.options[sel.selectedIndex]?.text || '';
+  updateBulkUI();
+  // reset calculate label in case it was previously run
+  const lbl = document.getElementById('calc-btn-label');
+  if (lbl) lbl.textContent = 'Calculate Distribution';
+}
+
+function addAgentsFromProfile() {
+  const sel = document.getElementById('bulk-profile-select');
+  const profileId = sel.value;
+  if (!profileId) return;
+  const p = profiles.find(p => p.id === profileId);
+  if (!p) return;
+  let added = 0;
+  for (const email of p.users) {
+    if (!bulkAgents.find(a => a.email === email)) {
+      bulkAgents.push({ email });
+      added++;
+    }
+  }
+  sel.value = '';
+  updateBulkAgentChips();
+  updateBulkUI();
+  if (added > 0) showToast(`Added ${added} agent${added !== 1 ? 's' : ''} from ${p.name}`);
+  else showToast('All agents from that profile are already added');
+}
+
+function addBulkAgent() {
+  const input = document.getElementById('bulk-agent-input');
+  const email = input.value.trim().toLowerCase();
+  if (!email) return;
+  if (!email.includes('@')) { showToast('Enter a valid email address'); return; }
+  if (bulkAgents.find(a => a.email === email)) { showToast(`${email} is already in the list`); return; }
+  bulkAgents.push({ email });
+  input.value = '';
+  updateBulkAgentChips();
+  updateBulkUI();
+}
+
+function removeBulkAgent(email) {
+  bulkAgents = bulkAgents.filter(a => a.email !== email);
+  updateBulkAgentChips();
+  updateBulkUI();
+}
+
+function updateBulkAgentChips() {
+  const el = document.getElementById('bulk-agent-chips');
+  if (!el) return;
+  if (bulkAgents.length === 0) {
+    el.innerHTML = '<span class="empty-chips">No agents selected yet</span>';
+    return;
+  }
+  el.innerHTML = bulkAgents.map(a => `
+    <span class="user-chip">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      ${escHtml(a.email)}
+      <button onclick="removeBulkAgent('${escHtml(a.email)}')" title="Remove">×</button>
+    </span>
+  `).join('');
+}
+
+function updateBulkUI() {
+  const ready = bulkSearchId && bulkAgents.length > 0;
+
+  // Enable Calculate when search + agents are selected
+  const calcBtn = document.getElementById('bulk-calculate-btn');
+  if (calcBtn) calcBtn.disabled = !ready;
+
+  // Disable Distribute until Calculate has been run
+  const distBtn = document.getElementById('bulk-distribute-btn');
+  if (distBtn) distBtn.disabled = true;
+
+  // Clear preview and result when inputs change
+  const preview = document.getElementById('bulk-preview');
+  if (preview) preview.style.display = 'none';
+
+  const result = document.getElementById('bulk-result');
+  if (result) result.style.display = 'none';
+}
+
+async function runCalculate() {
+  if (!bulkSearchId || bulkAgents.length === 0) return;
+
+  const calcBtn = document.getElementById('bulk-calculate-btn');
+  const calcSpinner = document.getElementById('calc-spinner');
+  const calcLabel = document.getElementById('calc-btn-label');
+  const preview = document.getElementById('bulk-preview');
+  const distBtn = document.getElementById('bulk-distribute-btn');
+
+  calcBtn.disabled = true;
+  calcSpinner.style.display = 'block';
+  calcLabel.textContent = 'Calculating…';
+  preview.style.display = 'none';
+  distBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/bulk-count`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ searchId: bulkSearchId })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      preview.style.display = 'block';
+      preview.style.color = 'var(--danger)';
+      preview.innerHTML = data.error || 'Could not count conversations.';
+      return;
+    }
+
+    const total = data.total;
+    const n = bulkAgents.length;
+    const base = Math.floor(total / n);
+    const remainder = total % n;
+
+    preview.style.display = 'block';
+    preview.style.color = 'var(--text-secondary)';
+
+    if (total === 0) {
+      preview.innerHTML = `<strong>No conversations</strong> found in <strong>${escHtml(bulkSearchName)}</strong>. Nothing to distribute.`;
+      return;
+    }
+
+    // Build per-agent preview
+    const rows = bulkAgents.map((a, i) => {
+      const qty = base + (i < remainder ? 1 : 0);
+      return `<div style="padding:2px 0;">${escHtml(a.email)}: <strong>${qty}</strong></div>`;
+    }).join('');
+
+    preview.innerHTML = `
+      <div style="margin-bottom:8px;">
+        <strong>${total} conversations</strong> from <strong>${escHtml(bulkSearchName)}</strong>
+        → distributed across <strong>${n} agent${n !== 1 ? 's' : ''}</strong>
+      </div>
+      <div style="font-size:12px;line-height:1.8;">${rows}</div>
+    `;
+
+    // Enable Distribute now that we have a valid calculation
+    distBtn.disabled = false;
+
+  } catch (err) {
+    preview.style.display = 'block';
+    preview.style.color = 'var(--danger)';
+    preview.innerHTML = 'Could not reach server.';
+  } finally {
+    calcBtn.disabled = false;
+    calcSpinner.style.display = 'none';
+    calcLabel.textContent = 'Calculate Distribution';
+  }
+}
+
+async function runBulkDistribute() {
+  if (!bulkSearchId || bulkAgents.length === 0) return;
+
+  const btn = document.getElementById('bulk-distribute-btn');
+  const spinner = document.getElementById('bulk-spinner');
+  const label = document.getElementById('bulk-btn-label');
+  const result = document.getElementById('bulk-result');
+
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  label.textContent = 'Distributing…';
+  result.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/bulk-distribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        searchId: bulkSearchId,
+        searchName: bulkSearchName,
+        agents: bulkAgents.map(a => a.email),
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      result.style.cssText = 'display:block;margin-top:12px;padding:12px 14px;border-radius:5px;font-size:13px;background:#fdf2f2;border:1px solid #f0b8b8;color:#9b2c2c;';
+      result.textContent = data.error || 'Something went wrong.';
+    } else {
+      result.style.cssText = 'display:block;margin-top:12px;padding:12px 14px;border-radius:5px;font-size:13px;background:#f0faf4;border:1px solid #a8dbb8;color:#2d6e46;';
+      const lines = data.assignments.map(a =>
+        `<div>✓ ${escHtml(a.email)}: ${a.assigned} conversation${a.assigned !== 1 ? 's' : ''}</div>`
+      ).join('');
+      result.innerHTML = `<strong>${data.totalAssigned} conversations assigned</strong><div style="margin-top:8px;font-size:12px;">${lines}</div>`;
+    }
+  } catch (err) {
+    result.style.cssText = 'display:block;margin-top:12px;padding:12px 14px;border-radius:5px;font-size:13px;background:#fdf2f2;border:1px solid #f0b8b8;color:#9b2c2c;';
+    result.textContent = 'Could not reach server. Check your connection.';
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    label.textContent = 'Bulk Distribute';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

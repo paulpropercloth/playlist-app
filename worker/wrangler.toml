@@ -1,0 +1,7 @@
+name = "playlist-backend"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "8f1004c486b44a51bbcef8e5c4997d19"

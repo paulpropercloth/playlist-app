@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playlist</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: #f7f7f5;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12px;
+    min-height: 100vh;
+  }
+
+  .widget {
+    background: #fff;
+    border: 1px solid #e8e6e1;
+    border-radius: 10px;
+    padding: 16px;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .widget-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0ede8;
+  }
+
+  .widget-icon {
+    width: 28px;
+    height: 28px;
+    background: #1a1a1a;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .widget-icon svg { display: block; }
+
+  .widget-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .field { margin-bottom: 10px; }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #888;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  input[type="email"],
+  select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #e8e6e1;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #1a1a1a;
+    background: #faf9f7;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+
+  input[type="email"]:focus,
+  select:focus {
+    border-color: #1a1a1a;
+    background: #fff;
+  }
+
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+    cursor: pointer;
+  }
+
+  .hit-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px;
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: background 0.15s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hit-btn:hover:not(:disabled) { background: #333; }
+  .hit-btn:active:not(:disabled) { transform: scale(0.98); }
+  .hit-btn:disabled { background: #ccc; cursor: default; }
+
+  .hit-btn .spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    margin-top: 10px;
+    padding: 9px 11px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    display: none;
+  }
+
+  .toast.success {
+    background: #f0faf4;
+    border: 1px solid #a8dbb8;
+    color: #2d6e46;
+    display: block;
+  }
+
+  .toast.error {
+    background: #fdf2f2;
+    border: 1px solid #f0b8b8;
+    color: #9b2c2c;
+    display: block;
+  }
+
+  .toast.info {
+    background: #f0f4ff;
+    border: 1px solid #b8c8f0;
+    color: #2c3e9b;
+    display: block;
+  }
+
+  .results-list {
+    margin-top: 6px;
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .results-list li {
+    font-size: 11px;
+    color: #3a7a52;
+    padding: 1px 0;
+  }
+
+  .results-list li::before {
+    content: '✓ ';
+    font-weight: 600;
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="widget">
+  <div class="widget-header">
+    <div class="widget-icon">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"/>
+        <line x1="8" y1="12" x2="21" y2="12"/>
+        <line x1="8" y1="18" x2="21" y2="18"/>
+        <circle cx="3" cy="6" r="1" fill="#fff" stroke="none"/>
+        <circle cx="3" cy="12" r="1" fill="#fff" stroke="none"/>
+        <circle cx="3" cy="18" r="1" fill="#fff" stroke="none"/>
+      </svg>
+    </div>
+    <span class="widget-title">Playlist</span>
+  </div>
+
+  <div class="field">
+    <label for="email">Your email</label>
+    <input type="email" id="email" placeholder="you@propercloth.com" autocomplete="email" />
+  </div>
+
+  <div class="field">
+    <label for="count">Conversations</label>
+    <select id="count">
+      <option value="3">3</option>
+      <option value="5" selected>5</option>
+      <option value="7">7</option>
+    </select>
+  </div>
+
+  <button class="hit-btn" id="hitBtn" onclick="hitMe()">
+    <div class="spinner" id="spinner"></div>
+    <span id="btnLabel">Hit me</span>
+  </button>
+
+  <div class="toast" id="toast">
+    <div id="toastMsg"></div>
+    <ul class="results-list" id="resultsList"></ul>
+  </div>
+</div>
+
+<script>
+  // ── CONFIG ──────────────────────────────────────────────
+  const API_BASE = 'https://playlist-backend.prprkust.workers.dev';
+  // ────────────────────────────────────────────────────────
+
+  async function hitMe() {
+    const email = document.getElementById('email').value.trim();
+    const count = parseInt(document.getElementById('count').value);
+    const btn   = document.getElementById('hitBtn');
+    const spinner = document.getElementById('spinner');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
+    const resultsList = document.getElementById('resultsList');
+
+    if (!email) {
+      showToast('error', 'Please enter your email address.');
+      return;
+    }
+
+    // loading state
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    document.getElementById('btnLabel').textContent = 'Working…';
+    toast.className = 'toast';
+    resultsList.innerHTML = '';
+
+    try {
+      const res = await fetch(`${API_BASE}/api/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, count })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast('error', data.error || 'Something went wrong. Try again.');
+      } else {
+        const lines = data.results || [];
+        const totalAssigned = lines.reduce((sum, r) => sum + r.assigned, 0);
+        toastMsg.textContent = `${totalAssigned} conversation${totalAssigned !== 1 ? 's' : ''} assigned to you.`;
+        resultsList.innerHTML = lines
+          .map(r => `<li>${r.assigned} from "${r.search}"</li>`)
+          .join('');
+        toast.className = 'toast success';
+      }
+    } catch (err) {
+      showToast('error', 'Could not reach server. Check your connection.');
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      document.getElementById('btnLabel').textContent = 'Hit me';
+    }
+  }
+
+  function showToast(type, msg) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    document.getElementById('resultsList').innerHTML = '';
+    toast.className = `toast ${type}`;
+  }
+</script>
+</body>
+</html>
