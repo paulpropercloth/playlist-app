@@ -19,7 +19,7 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin || '*',
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 }
 
@@ -124,6 +124,55 @@ async function buildSearchGroups(apiKey, kv) {
   return [{ folderId: '__all__', folderName: 'All Searches', searches }];
 }
 
+// ── GOOGLE AUTH + ROLES ──────────────────────────────────────────────────────
+// Roles: 'admin' (everything + manage access) and 'manager' (panel features).
+// Admins listed in env.ADMIN_EMAILS (comma-separated) are fixed; others live in KV key "access".
+const tokenCache = new Map(); // idToken -> { email, exp }
+
+async function verifyGoogleToken(token, env) {
+  const cached = tokenCache.get(token);
+  if (cached && cached.exp * 1000 > Date.now()) return cached.email;
+
+  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
+  if (!res.ok) return null;
+  const info = await res.json();
+  if (info.aud !== env.GOOGLE_CLIENT_ID) return null;
+  if (info.email_verified !== 'true' && info.email_verified !== true) return null;
+  const email = (info.email || '').toLowerCase();
+  if (!email.endsWith('@' + (env.ALLOWED_DOMAIN || 'propercloth.com'))) return null;
+  const exp = Number(info.exp);
+  if (!exp || exp * 1000 < Date.now()) return null;
+  if (tokenCache.size > 500) tokenCache.clear();
+  tokenCache.set(token, { email, exp });
+  return email;
+}
+
+function fixedAdmins(env) {
+  return (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+}
+
+async function getAccessList(env) {
+  const raw = await env.KV.get('access');
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function getRole(email, env) {
+  if (fixedAdmins(env).includes(email)) return 'admin';
+  const list = await getAccessList(env);
+  return list.find(a => a.email === email)?.role || null;
+}
+
+// Returns { email, role } or null if not signed in with a valid propercloth.com Google account
+async function authenticate(request, env) {
+  if (!env.GOOGLE_CLIENT_ID) return null;
+  const header = request.headers.get('Authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token) return null;
+  const email = await verifyGoogleToken(token, env);
+  if (!email) return null;
+  return { email, role: await getRole(email, env) };
+}
+
 // ── MAIN HANDLER ─────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -135,6 +184,40 @@ export default {
     // Preflight
     if (method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }
+
+    // ── AUTH GATE ──────────────────────────────────────────────────────────
+    // /api/assign (agent widget) stays open. Everything else needs a signed-in manager/admin.
+    if (path.startsWith('/api/') && path !== '/api/assign') {
+      if (!env.GOOGLE_CLIENT_ID) return errorResponse('Server auth is not configured', 500, origin);
+      const auth = await authenticate(request, env);
+      if (!auth) return errorResponse('Sign in required', 401, origin);
+
+      if (path === '/api/me') {
+        return jsonResponse({ email: auth.email, role: auth.role }, 200, origin);
+      }
+      if (!auth.role) return errorResponse('You do not have access to Playlist. Ask an admin.', 403, origin);
+
+      if (path === '/api/access') {
+        if (auth.role !== 'admin') return errorResponse('Admins only', 403, origin);
+        if (method === 'GET') {
+          return jsonResponse({ fixed: fixedAdmins(env), list: await getAccessList(env) }, 200, origin);
+        }
+        if (method === 'POST') {
+          const body = await request.json();
+          if (!Array.isArray(body)) return errorResponse('Expected an array', 400, origin);
+          const domain = '@' + (env.ALLOWED_DOMAIN || 'propercloth.com');
+          const clean = [];
+          for (const a of body) {
+            const email = String(a.email || '').trim().toLowerCase();
+            if (!email.endsWith(domain)) return errorResponse(`${email || 'Email'} must be a ${domain} address`, 400, origin);
+            if (!['admin', 'manager'].includes(a.role)) return errorResponse('Role must be admin or manager', 400, origin);
+            if (!clean.some(c => c.email === email)) clean.push({ email, role: a.role });
+          }
+          await env.KV.put('access', JSON.stringify(clean));
+          return jsonResponse({ ok: true }, 200, origin);
+        }
+      }
     }
 
     // ── GET /api/profiles ──────────────────────────────────────────────────

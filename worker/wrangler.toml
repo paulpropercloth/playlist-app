@@ -5,3 +5,8 @@ compatibility_date = "2025-01-01"
 [[kv_namespaces]]
 binding = "KV"
 id = "8f1004c486b44a51bbcef8e5c4997d19"
+
+[vars]
+GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_CLIENT_ID"
+ALLOWED_DOMAIN = "propercloth.com"
+ADMIN_EMAILS = "REPLACE_WITH_PAUL_EMAIL"

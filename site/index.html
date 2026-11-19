@@ -6,6 +6,7 @@
 <title>Playlist — Control Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -23,6 +24,21 @@
   .brand-icon { width: 30px; height: 30px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .brand-name { font-size: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 
+  .login-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 32px; width: 340px; text-align: center; }
+  .login-box h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+  .login-box p { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
+  .login-box .g-wrap { display: flex; justify-content: center; }
+  .login-err { margin-top: 14px; font-size: 12px; color: var(--danger); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .user-email { font-size: 12px; color: var(--text-secondary); }
+  .role-pill { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: var(--tag-bg); color: var(--tag-text); padding: 2px 7px; border-radius: 10px; }
+  .access-row { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .access-row:last-child { border-bottom: none; }
+  .access-row .grow { flex: 1; }
+  .access-row select { padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 12px; background: var(--surface); }
+  .tab.admin-only { display: none; }
+  body.is-admin .tab.admin-only { display: block; }
   .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; }
   .tab { padding: 12px 18px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; user-select: none; }
   .tab:hover { color: var(--text); }
@@ -98,6 +114,15 @@
 </head>
 <body>
 
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h1>Playlist</h1>
+    <p id="loginMsg">Sign in with your Proper Cloth Google account to open the control panel.</p>
+    <div class="g-wrap"><div id="gBtn"></div></div>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
 <header class="header">
   <div class="header-brand">
     <div class="brand-icon">
@@ -108,16 +133,21 @@
     </div>
     <span class="brand-name">Playlist</span>
   </div>
+  <div class="header-right">
+  <span class="user-email" id="userEmail"></span><span class="role-pill" id="userRole"></span>
+  <button class="btn btn-outline btn-sm" onclick="signOut()">Sign out</button>
   <button class="btn btn-outline btn-sm" id="refreshBtn" onclick="refreshSearches()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     Refresh Searches
   </button>
+  </div>
 </header>
 
 <nav class="tabs">
   <div class="tab active" onclick="switchTab('users')">Users &amp; Profiles</div>
   <div class="tab" onclick="switchTab('settings')">Profile Settings</div>
   <div class="tab" onclick="switchTab('bulk')">Bulk Distribute</div>
+  <div class="tab admin-only" onclick="switchTab('access')">Access</div>
 </nav>
 
 <main class="main">
@@ -151,6 +181,21 @@
     </div>
     <div id="settings-list"></div>
   </div>
+  <div id="tab-access" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Access</div>
+        <div class="section-desc">Who can open this control panel. Admins manage access; Managers use everything else. Only @propercloth.com Google accounts can be added.</div>
+      </div>
+    </div>
+    <div class="add-profile-form">
+      <input type="email" id="newAccessEmail" placeholder="name@propercloth.com" />
+      <select id="newAccessRole"><option value="manager">Manager</option><option value="admin">Admin</option></select>
+      <button class="btn btn-primary" onclick="addAccess()">Add</button>
+    </div>
+    <div class="card" id="access-list"></div>
+  </div>
+
   <div id="tab-bulk" class="tab-panel">
     <div class="section-header">
       <div>
@@ -226,6 +271,129 @@
 
 <script>
 const API_BASE = 'https://playlist-backend.prprkust.workers.dev';
+const GOOGLE_CLIENT_ID = 'REPLACE_WITH_GOOGLE_CLIENT_ID';
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+let idToken = null;
+let me = null;
+let accessList = [];
+let fixedAdmins = [];
+
+function tokenValid(t) {
+  try {
+    const exp = JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp;
+    return exp * 1000 > Date.now() + 30000;
+  } catch { return false; }
+}
+
+async function apiFetch(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), Authorization: `Bearer ${idToken}` };
+  const res = await fetch(url, opts);
+  if (res.status === 401) { showLogin('Your session expired. Please sign in again.'); }
+  return res;
+}
+
+function showLogin(msg) {
+  idToken = null; me = null;
+  try { localStorage.removeItem('playlist_id_token'); } catch {}
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('loginErr').textContent = msg || '';
+}
+
+function signOut() {
+  try { google.accounts.id.disableAutoSelect(); } catch {}
+  showLogin('');
+}
+
+async function onGoogleCredential(resp) {
+  idToken = resp.credential;
+  await startSession();
+}
+
+async function startSession() {
+  document.getElementById('loginErr').textContent = '';
+  let res;
+  try { res = await apiFetch(`${API_BASE}/api/me`); }
+  catch { document.getElementById('loginErr').textContent = 'Could not reach server.'; return; }
+  if (!res.ok) return; // apiFetch already showed login on 401
+  me = await res.json();
+  if (!me.role) {
+    showLogin(`${me.email} doesn't have access to Playlist. Ask an admin to add you.`);
+    return;
+  }
+  try { localStorage.setItem('playlist_id_token', idToken); } catch {}
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('userEmail').textContent = me.email;
+  document.getElementById('userRole').textContent = me.role;
+  document.body.classList.toggle('is-admin', me.role === 'admin');
+  init();
+  if (me.role === 'admin') loadAccess();
+}
+
+function bootAuth() {
+  let saved = null;
+  try { saved = localStorage.getItem('playlist_id_token'); } catch {}
+  if (saved && tokenValid(saved)) { idToken = saved; startSession(); }
+  if (window.google && google.accounts && google.accounts.id) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: onGoogleCredential,
+      hd: 'propercloth.com',
+      auto_select: true,
+    });
+    google.accounts.id.renderButton(document.getElementById('gBtn'), { theme: 'outline', size: 'large', text: 'signin_with' });
+    if (!idToken) google.accounts.id.prompt();
+  } else {
+    setTimeout(bootAuth, 200);
+  }
+}
+
+// ── ACCESS TAB (admins) ───────────────────────────────────────────────────────
+async function loadAccess() {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/access`);
+    const data = await res.json();
+    accessList = data.list || []; fixedAdmins = data.fixed || [];
+    renderAccess();
+  } catch (e) { console.error('Failed to load access list', e); }
+}
+
+function renderAccess() {
+  const rows = [
+    ...fixedAdmins.map(e => `<div class="access-row"><span class="grow">${escHtml(e)}</span><span class="role-pill">Owner · Admin</span></div>`),
+    ...accessList.filter(a => !fixedAdmins.includes(a.email)).map(a => `
+      <div class="access-row"><span class="grow">${escHtml(a.email)}</span>
+        <select onchange="changeAccessRole('${escHtml(a.email)}', this.value)">
+          <option value="manager" ${a.role==='manager'?'selected':''}>Manager</option>
+          <option value="admin" ${a.role==='admin'?'selected':''}>Admin</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="removeAccess('${escHtml(a.email)}')">Remove</button>
+      </div>`)
+  ];
+  document.getElementById('access-list').innerHTML = rows.join('') || '<div class="empty-state">No one added yet.</div>';
+}
+
+async function saveAccess() {
+  const res = await apiFetch(`${API_BASE}/api/access`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(accessList)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { showToast(data.error || 'Could not save access'); await loadAccess(); return; }
+  showToast('Access updated');
+  renderAccess();
+}
+
+function addAccess() {
+  const input = document.getElementById('newAccessEmail');
+  const email = input.value.trim().toLowerCase();
+  if (!email) return;
+  if (accessList.some(a => a.email === email) || fixedAdmins.includes(email)) { showToast('Already has access'); return; }
+  accessList.push({ email, role: document.getElementById('newAccessRole').value });
+  input.value = '';
+  saveAccess();
+}
+function removeAccess(email) { accessList = accessList.filter(a => a.email !== email); saveAccess(); }
+function changeAccessRole(email, role) { const a = accessList.find(x => x.email === email); if (a) { a.role = role; saveAccess(); } }
 
 let profiles = [];
 let savedSearches = []; // flat array of {id, name}
@@ -235,7 +403,7 @@ let searchesLoaded = false;
 async function init() {
   // 1. Load profiles — render immediately when done
   try {
-    const res = await fetch(`${API_BASE}/api/profiles`);
+    const res = await apiFetch(`${API_BASE}/api/profiles`);
     const data = await res.json();
     profiles = Array.isArray(data) ? data : [];
   } catch (e) {
@@ -251,7 +419,7 @@ async function init() {
 async function loadSavedSearches(forceRefresh) {
   try {
     const url = `${API_BASE}/api/saved-searches${forceRefresh ? '?refresh=1' : ''}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const data = await res.json();
 
     // Flatten folder-grouped structure into a simple array
@@ -293,7 +461,7 @@ async function refreshSearches() {
 // ── TAB SWITCHING ─────────────────────────────────────────────────────────────
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['users','settings','bulk'][i] === tab);
+    t.classList.toggle('active', ['users','settings','bulk','access'][i] === tab);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
@@ -479,7 +647,7 @@ function updateSearchName(profileId, index, selectEl) {
 // ── SAVE ──────────────────────────────────────────────────────────────────────
 async function persistProfiles() {
   try {
-    await fetch(`${API_BASE}/api/profiles`, {
+    await apiFetch(`${API_BASE}/api/profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(profiles)
@@ -640,7 +808,7 @@ async function runCalculate() {
   distBtn.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/api/bulk-count`, {
+    const res = await apiFetch(`${API_BASE}/api/bulk-count`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ searchId: bulkSearchId })
@@ -709,7 +877,7 @@ async function runBulkDistribute() {
   result.style.display = 'none';
 
   try {
-    const res = await fetch(`${API_BASE}/api/bulk-distribute`, {
+    const res = await apiFetch(`${API_BASE}/api/bulk-distribute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -741,7 +909,7 @@ async function runBulkDistribute() {
   }
 }
 
-init();
+bootAuth();
 </script>
 </body>
 </html>
