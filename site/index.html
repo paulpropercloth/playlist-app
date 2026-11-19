@@ -37,6 +37,14 @@
   .access-row:last-child { border-bottom: none; }
   .access-row .grow { flex: 1; }
   .access-row select { padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 12px; background: var(--surface); }
+  .act-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .act-table th { text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .act-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .act-table tr:last-child td { border-bottom: none; }
+  .act-search { margin-bottom: 4px; font-size: 12px; }
+  .act-links a { display: inline-block; margin: 2px 6px 2px 0; font-family: 'DM Mono', monospace; font-size: 11px; color: #2c5282; text-decoration: none; background: var(--tag-bg); padding: 2px 6px; border-radius: 4px; }
+  .act-links a:hover { text-decoration: underline; }
+  .act-zero { color: var(--danger); }
   .tab.admin-only { display: none; }
   body.is-admin .tab.admin-only { display: block; }
   .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; }
@@ -147,6 +155,7 @@
   <div class="tab active" onclick="switchTab('users')">Users &amp; Profiles</div>
   <div class="tab" onclick="switchTab('settings')">Profile Settings</div>
   <div class="tab" onclick="switchTab('bulk')">Bulk Distribute</div>
+  <div class="tab" onclick="switchTab('activity')">Activity</div>
   <div class="tab admin-only" onclick="switchTab('access')">Access</div>
 </nav>
 
@@ -181,6 +190,23 @@
     </div>
     <div id="settings-list"></div>
   </div>
+  <div id="tab-activity" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Activity</div>
+        <div class="section-desc">Every "Hit me" click: who, when, how many tickets, from which searches. Newest first.</div>
+      </div>
+      <button class="btn btn-outline" onclick="loadActivity(true)">Refresh</button>
+    </div>
+    <div class="add-profile-form">
+      <input type="text" id="actFilter" placeholder="Filter by agent email…" oninput="renderActivity()" />
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table class="act-table"><thead><tr><th>When</th><th>Agent</th><th>Assigned</th><th>Searches &amp; tickets</th></tr></thead><tbody id="act-body"></tbody></table>
+    </div>
+    <div style="margin-top:12px;text-align:center"><button class="btn btn-outline" id="actMore" style="display:none" onclick="loadActivity(false)">Load more</button></div>
+  </div>
+
   <div id="tab-access" class="tab-panel">
     <div class="section-header">
       <div>
@@ -327,6 +353,7 @@ async function startSession() {
   document.getElementById('userRole').textContent = me.role;
   document.body.classList.toggle('is-admin', me.role === 'admin');
   init();
+  loadActivity(true);
   if (me.role === 'admin') loadAccess();
 }
 
@@ -346,6 +373,42 @@ function bootAuth() {
   } else {
     setTimeout(bootAuth, 200);
   }
+}
+
+// ── ACTIVITY TAB ──────────────────────────────────────────────────────────────
+const CONVO_URL = (c) => c.customerId ? `https://propercloth.kustomerapp.com/app/customers/${c.customerId}/events/${c.id}` : null;
+let activityEvents = [];
+let activityCursor = null;
+let activityLoaded = false;
+
+async function loadActivity(reset) {
+  if (reset) { activityEvents = []; activityCursor = null; }
+  try {
+    const res = await apiFetch(`${API_BASE}/api/activity?limit=100${activityCursor ? '&cursor=' + encodeURIComponent(activityCursor) : ''}`);
+    const data = await res.json();
+    activityEvents = activityEvents.concat(data.events || []);
+    activityCursor = data.cursor || null;
+    activityLoaded = true;
+    renderActivity();
+  } catch (e) { showToast('Could not load activity'); }
+}
+
+function renderActivity() {
+  const f = (document.getElementById('actFilter').value || '').trim().toLowerCase();
+  const rows = activityEvents.filter(e => !f || e.email.toLowerCase().includes(f)).map(e => {
+    const when = new Date(e.ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const searches = e.results.filter(r => r.assigned > 0 || r.error).map(r => {
+      const links = (r.conversations || []).map(c => {
+        const u = CONVO_URL(c);
+        const label = c.ordinal ? '#' + c.ordinal : c.id.slice(-6);
+        return u ? `<a href="${u}" target="_blank" rel="noopener">${label}</a>` : `<a>${label}</a>`;
+      }).join('');
+      return `<div class="act-search"><strong>${escHtml(r.search)}</strong> · ${r.assigned}${r.error ? ' · <span class="act-zero">' + escHtml(r.error) + '</span>' : ''}<div class="act-links">${links}</div></div>`;
+    }).join('') || '<span class="act-zero">No tickets available</span>';
+    return `<tr><td style="white-space:nowrap">${when}</td><td>${escHtml(e.email)}<div style="font-size:11px;color:var(--text-muted)">${escHtml(e.profile || '')}</div></td><td>${e.totalAssigned} of ${e.requested}</td><td>${searches}</td></tr>`;
+  });
+  document.getElementById('act-body').innerHTML = rows.join('') || `<tr><td colspan="4" class="empty-state">${activityLoaded ? 'No activity yet.' : 'Loading…'}</td></tr>`;
+  document.getElementById('actMore').style.display = activityCursor ? 'inline-flex' : 'none';
 }
 
 // ── ACCESS TAB (admins) ───────────────────────────────────────────────────────
@@ -461,7 +524,7 @@ async function refreshSearches() {
 // ── TAB SWITCHING ─────────────────────────────────────────────────────────────
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['users','settings','bulk','access'][i] === tab);
+    t.classList.toggle('active', ['users','settings','bulk','activity','access'][i] === tab);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');

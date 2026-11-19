@@ -209,7 +209,7 @@ async function fetchOldestWaiting(query, qty, apiKey) {
 
 // ── MAIN HANDLER ─────────────────────────────────────────────────────────────
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url    = new URL(request.url);
     const path   = url.pathname;
     const method = request.method;
@@ -252,6 +252,18 @@ export default {
           return jsonResponse({ ok: true }, 200, origin);
         }
       }
+    }
+
+    // ── GET /api/activity ──────────────────────────────────────────────────
+    if (path === '/api/activity' && method === 'GET') {
+      const cursor = url.searchParams.get('cursor') || undefined;
+      const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 200);
+      const list = await env.KV.list({ prefix: 'activity:', limit, cursor });
+      const events = (await Promise.all(list.keys.map(async k => {
+        const raw = await env.KV.get(k.name);
+        return raw ? JSON.parse(raw) : null;
+      }))).filter(Boolean);
+      return jsonResponse({ events, cursor: list.list_complete ? null : list.cursor }, 200, origin);
     }
 
     // ── GET /api/profiles ──────────────────────────────────────────────────
@@ -415,6 +427,7 @@ export default {
           // Only assign up to slotsRemaining
           const toAssign = conversations.slice(0, slotsRemaining);
           const assignedIds = [];
+          const assignedConvos = [];
           for (const convo of toAssign) {
             try {
               await kustomer(
@@ -424,20 +437,37 @@ export default {
                 env.KUSTOMER_API_KEY
               );
               assignedIds.push(convo.id);
+              assignedConvos.push({ id: convo.id, customerId: convo.relationships?.customer?.data?.id || null, ordinal: convo.attributes?.ordinal ?? null });
             } catch (assignErr) {
               console.error(`Failed to assign ${convo.id}:`, assignErr.message);
             }
           }
 
           slotsRemaining -= assignedIds.length;
-          results.push({ search: s.searchName, requested: requestQty, assigned: assignedIds.length });
+          results.push({ search: s.searchName, requested: requestQty, assigned: assignedIds.length, conversations: assignedConvos });
         } catch (err) {
           results.push({ search: s.searchName, requested: requestQty, assigned: 0, error: err.message });
         }
       }
 
       const totalAssigned = results.reduce((sum, r) => sum + r.assigned, 0);
-      return jsonResponse({ ok: true, totalAssigned, results }, 200, origin);
+
+      // Activity log (one KV key per event; newest sorts first). Never blocks or fails the assignment.
+      const ts = Date.now();
+      const logWrite = env.KV.put(
+        `activity:${String(9999999999999 - ts).padStart(13, '0')}:${crypto.randomUUID().slice(0, 8)}`,
+        JSON.stringify({
+          ts,
+          email,
+          profile: profile.name,
+          requested: count,
+          totalAssigned,
+          results: results.map(r => ({ search: r.search, assigned: r.assigned, error: r.error || null, conversations: r.conversations || [] })),
+        })
+      ).catch(e => console.error('Activity log failed:', e.message));
+      if (ctx && ctx.waitUntil) ctx.waitUntil(logWrite); else await logWrite;
+
+      return jsonResponse({ ok: true, totalAssigned, results: results.map(({ conversations, ...r }) => r) }, 200, origin);
     }
 
     // ── POST /api/bulk-count ──────────────────────────────────────────────
