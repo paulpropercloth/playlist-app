@@ -173,6 +173,40 @@ async function authenticate(request, env) {
   return { email, role: await getRole(email, env) };
 }
 
+// ── OLDEST-WAITING PICKER ────────────────────────────────────────────────────
+// Kustomer's search API doesn't reliably sort conversations, so we pull a pool of matches
+// and sort locally by when the customer's last message arrived (oldest first).
+const POOL_PAGE_SIZE = 100;
+const POOL_MAX_PAGES = 3; // up to 300 conversations considered per search
+
+function waitingSince(convo) {
+  const a = convo.attributes || {};
+  const t = a.lastMessageIn?.createdAt || a.lastMessageAt || a.createdAt || null;
+  const ms = t ? Date.parse(t) : NaN;
+  return Number.isNaN(ms) ? null : ms;
+}
+
+async function fetchOldestWaiting(query, qty, apiKey) {
+  const body = { ...query, queryContext: 'conversation', sort: [{ conversation_updated_at: 'asc' }] };
+  let pool = [];
+  let total = Infinity;
+  for (let page = 1; page <= POOL_MAX_PAGES && pool.length < total; page++) {
+    const data = await kustomer('POST', `/customers/search?page=${page}&pageSize=${POOL_PAGE_SIZE}`, body, apiKey);
+    const items = data.data || [];
+    if (typeof data.meta?.total === 'number') total = data.meta.total;
+    pool = pool.concat(items);
+    if (items.length < POOL_PAGE_SIZE) break;
+  }
+  pool.sort((a, b) => {
+    const wa = waitingSince(a), wb = waitingSince(b);
+    if (wa === null && wb === null) return 0;
+    if (wa === null) return 1;
+    if (wb === null) return -1;
+    return wa - wb;
+  });
+  return pool.slice(0, qty);
+}
+
 // ── MAIN HANDLER ─────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -376,18 +410,7 @@ export default {
         const requestQty = slotsRemaining;
 
         try {
-          const searchBody = {
-            ...s.query,
-            queryContext: 'conversation',
-            sort: [{ conversation_updated_at: 'asc' }],
-          };
-          const searchData = await kustomer(
-            'POST',
-            `/customers/search?page=1&pageSize=${requestQty}`,
-            searchBody,
-            env.KUSTOMER_API_KEY
-          );
-          const conversations = searchData.data || [];
+          const conversations = await fetchOldestWaiting(s.query, requestQty, env.KUSTOMER_API_KEY);
 
           // Only assign up to slotsRemaining
           const toAssign = conversations.slice(0, slotsRemaining);
