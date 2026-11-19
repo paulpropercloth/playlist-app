@@ -7,6 +7,6 @@ binding = "KV"
 id = "8f1004c486b44a51bbcef8e5c4997d19"
 
 [vars]
-GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_CLIENT_ID"
+GOOGLE_CLIENT_ID = "172014641211-f51rosj8l0ok6nq6f4bog8a7ihk6rhu5.apps.googleusercontent.com"
 ALLOWED_DOMAIN = "propercloth.com"
-ADMIN_EMAILS = "REPLACE_WITH_PAUL_EMAIL"
+ADMIN_EMAILS = "paul@propercloth.com"
